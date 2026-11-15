@@ -14,6 +14,8 @@ pub const DEFAULT_INTERVAL_HOURS: u64 = 12;
 pub const MAX_INTERVAL_HOURS: u64 = 8760;
 pub const DEFAULT_RETAIN_DAYS: u64 = 7;
 pub const MAX_RETAIN_DAYS: u64 = 3650;
+pub const DEFAULT_RETRY_MINUTES: u64 = 5;
+pub const MAX_RETRY_MINUTES: u64 = 1440;
 
 /// Source of the current time (UTC). One definition, consumed by backup-cycle too.
 pub trait Clock {
@@ -73,6 +75,26 @@ pub fn interval_hours(env: &dyn Env) -> Result<u64, String> {
     if !(1..=MAX_INTERVAL_HOURS).contains(&value) {
         return Err(format!(
             "BACKUP_INTERVAL_HOURS must be between 1 and {MAX_INTERVAL_HOURS} (1 year)"
+        ));
+    }
+    Ok(value)
+}
+
+/// Parse `RETRY_INTERVAL_MINUTES` (default 5, 1..=1440). `Err` carries the message to log before exit 1.
+// @spec SCHED-RETRY-001, SCHED-RETRY-002
+pub fn retry_interval_minutes(env: &dyn Env) -> Result<u64, String> {
+    let raw = env_text(
+        env,
+        "RETRY_INTERVAL_MINUTES",
+        &DEFAULT_RETRY_MINUTES.to_string(),
+    );
+    let value: u64 = raw
+        .trim()
+        .parse()
+        .map_err(|_| format!("RETRY_INTERVAL_MINUTES must be a positive integer (got {raw:?})"))?;
+    if !(1..=MAX_RETRY_MINUTES).contains(&value) {
+        return Err(format!(
+            "RETRY_INTERVAL_MINUTES must be between 1 and {MAX_RETRY_MINUTES} (1 day)"
         ));
     }
     Ok(value)
@@ -183,14 +205,21 @@ pub struct Supervisor<'a> {
 }
 
 impl Supervisor<'_> {
+    /// Run one cycle, absorbing an error or panic; `true` when a backup was written.
     // @spec SCHED-LOOP-005, SCHED-LOOP-006
-    fn run_backup(&mut self) {
+    fn run_backup(&mut self) -> bool {
         log::info!("Starting backup...");
         let outcome =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.runner.run_cycle()));
         match outcome {
-            Ok(Ok(path)) => log::info!("Backup completed successfully: {}", path.display()),
-            Ok(Err(e)) => log::error!("Backup failed: {e}"),
+            Ok(Ok(path)) => {
+                log::info!("Backup completed successfully: {}", path.display());
+                true
+            }
+            Ok(Err(e)) => {
+                log::error!("Backup failed: {e}");
+                false
+            }
             Err(payload) => {
                 let message = payload
                     .downcast_ref::<&str>()
@@ -198,12 +227,15 @@ impl Supervisor<'_> {
                     .or_else(|| payload.downcast_ref::<String>().cloned())
                     .unwrap_or_else(|| "unknown panic".to_string());
                 log::error!("Backup panicked: {message}");
+                false
             }
         }
     }
 
-    /// Validate the interval, run one cycle, then loop: sleep → cycle → cleanup on a new UTC date.
+    /// Validate both intervals, run one cycle, then loop: sleep → cycle → cleanup on a new UTC date.
+    /// The sleep is the backup interval after a success and the retry interval after a failure.
     // @spec SCHED-LOOP-001, SCHED-LOOP-004, SCHED-LOOP-007, SCHED-SIGNAL-002, SCHED-SIGNAL-003, SCHED-RETAIN-004
+    // @spec SCHED-RETRY-003, SCHED-RETRY-004, SCHED-RETRY-005
     pub fn run(&mut self) -> i32 {
         log::info!("Initializing BackVault backup service");
         let interval_seconds = match interval_hours(self.env) {
@@ -213,16 +245,29 @@ impl Supervisor<'_> {
                 return 1;
             }
         };
+        let retry_seconds = match retry_interval_minutes(self.env) {
+            Ok(minutes) => (minutes * 60).min(interval_seconds),
+            Err(message) => {
+                log::error!("{message}");
+                return 1;
+            }
+        };
         log::info!("Running initial backup on startup...");
-        self.run_backup();
+        let mut succeeded = self.run_backup();
         let mut last_cleanup_date = self.clock.now_utc().date();
         log::info!("Starting backup loop, interval = {interval_seconds}s");
         while !self.shutdown.load(Ordering::SeqCst) {
-            sleep_interruptible(interval_seconds, &self.shutdown, self.sleeper);
+            let wait_seconds = if succeeded {
+                interval_seconds
+            } else {
+                log::info!("Retrying in {retry_seconds}s");
+                retry_seconds
+            };
+            sleep_interruptible(wait_seconds, &self.shutdown, self.sleeper);
             if self.shutdown.load(Ordering::SeqCst) {
                 break;
             }
-            self.run_backup();
+            succeeded = self.run_backup();
             let today = self.clock.now_utc().date();
             if today != last_cleanup_date {
                 run_cleanup(self.env, &self.allowed_base, self.clock);

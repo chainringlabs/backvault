@@ -6,7 +6,7 @@ A Bitwarden or Vaultwarden vault is a single point of failure for every credenti
 
 ## Approach
 
-BackVault is a long-running container that, on a fixed interval, authenticates to the vault server, exports the vault as Bitwarden-format JSON, encrypts it with a password, writes it to a mounted directory, and logs out. Once a day it prunes files older than a retention window.
+BackVault is a long-running container that, on a fixed interval, authenticates to the vault server, exports the vault as Bitwarden-format JSON, encrypts it with a password, writes it to a mounted directory, and logs out. A cycle that fails is tried again after a short retry interval until one succeeds. Once a day it prunes files older than a retention window.
 
 The service is a single static Rust binary. A second, separately released binary, `backvault-decrypt`, opens any backup on the operator's own machine; it is never shipped in the image, because the image has no shell and restoring must not depend on the thing being recovered. Both binaries link one `backvault-format` library crate, so the bytes the service writes and the bytes the restore tool reads are defined in exactly one place.
 
@@ -87,7 +87,7 @@ Segment status and next actions live in [docs/arrows/index.yaml](arrows/index.ya
 
 - *Secrets* enter as environment variables or an interactive prompt, never appear in logs or on a command line, and never leave the process. Passwords, derived keys, and the access token live in zeroizing containers and are wiped when dropped, at the latest at the end of each cycle.
 - *Filesystem containment* is enforced at two layers (directory under `/app`; file under the backup directory with a strict filename) for both writing and pruning.
-- *Failure handling* is fail-fast within a cycle and survive-and-continue across cycles. Errors are typed per segment and carry no secret material in their display form.
+- *Failure handling* is fail-fast within a cycle and survive-and-retry across cycles: a failed cycle never ends the service, and the next attempt comes after the retry interval instead of the full backup interval. Errors are typed per segment and carry no secret material in their display form.
 - *Logging* is line-oriented text on stdout, initialized once at the service entry point.
 
 ## Key Design Decisions
@@ -111,7 +111,7 @@ Decisions 3, 7, and 8 are `[inferred]` from code unless their rationale was foun
 - The container starts and completes a cycle with no `security_opt` in the Compose file.
 - Image vulnerability scans report nothing attributable to a runtime, because there is none; findings can only come from the project's own dependency tree.
 - No plaintext vault data is ever written to disk by the service; only `.enc` files appear in the backup directory.
-- A deliberately unreachable server for one interval produces exactly one logged failed cycle and a successful cycle at the next interval.
+- A server that is deliberately unreachable when a cycle is due produces one logged failed cycle per retry interval while it stays down, and a successful cycle within one retry interval of it coming back.
 
 ## References
 

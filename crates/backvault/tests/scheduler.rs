@@ -15,8 +15,8 @@ use time::macros::datetime;
 use backvault::cycle::CycleError;
 use backvault::env::MapEnv;
 use backvault::scheduler::{
-    Clock, CycleRunner, Sleeper, Supervisor, interval_hours, retain_days, run_cleanup,
-    sleep_interruptible, version_line,
+    Clock, CycleRunner, Sleeper, Supervisor, interval_hours, retain_days, retry_interval_minutes,
+    run_cleanup, sleep_interruptible, version_line,
 };
 
 struct FakeClock(Cell<time::OffsetDateTime>);
@@ -323,6 +323,173 @@ fn version_line_names_the_binary_and_version() {
     assert_eq!(
         version_line(),
         format!("backvault {}", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Retry after a failed cycle
+// ---------------------------------------------------------------------------
+
+/// Run the supervisor over `steps` with a 1-hour backup interval and the given retry setting
+/// (`None` leaves `RETRY_INTERVAL_MINUTES` unset); returns cycles run and total time waited.
+fn waited(retry_minutes: Option<&str>, steps: Vec<Step>) -> (usize, Duration) {
+    capture_logs();
+    let mut h = harness();
+    h.env = h.env.set("BACKUP_INTERVAL_HOURS", "1");
+    if let Some(m) = retry_minutes {
+        h.env = h.env.set("RETRY_INTERVAL_MINUTES", m);
+    }
+    let clock = FakeClock::at(DAY1);
+    let mut r = runner(&h, steps);
+    let mut s = sleeper(&h, None, Some(&clock));
+    assert_eq!(supervise(&h, &mut r, &clock, &mut s), 0);
+    assert!(s.calls.iter().all(|d| *d <= Duration::from_secs(1)));
+    (r.calls, s.calls.iter().sum())
+}
+
+const HOUR: Duration = Duration::from_secs(3600);
+const MINUTE: Duration = Duration::from_secs(60);
+
+// @spec SCHED-RETRY-001
+#[test]
+fn retry_interval_defaults_to_5_minutes() {
+    assert_eq!(retry_interval_minutes(&MapEnv::default()).unwrap(), 5);
+    assert_eq!(
+        retry_interval_minutes(&MapEnv::default().set("RETRY_INTERVAL_MINUTES", "1")).unwrap(),
+        1
+    );
+    assert_eq!(
+        retry_interval_minutes(&MapEnv::default().set("RETRY_INTERVAL_MINUTES", "1440")).unwrap(),
+        1440
+    );
+    // A deployment that never heard of the variable starts, and retries a failure after 5 minutes.
+    let (calls, total) = waited(
+        None,
+        vec![Step::Err("down".into()), Step::OkThenShutdown(p("a.enc"))],
+    );
+    assert_eq!(calls, 2);
+    assert_eq!(total, 5 * MINUTE);
+}
+
+// @spec SCHED-RETRY-002
+#[test]
+fn invalid_retry_interval_is_fatal_before_any_cycle() {
+    for bad in ["abc", "0", "1441", "1.5", "-1", ""] {
+        assert!(
+            retry_interval_minutes(&MapEnv::default().set("RETRY_INTERVAL_MINUTES", bad)).is_err(),
+            "{bad:?}"
+        );
+        capture_logs();
+        let mut h = harness();
+        h.env = h.env.set("RETRY_INTERVAL_MINUTES", bad);
+        let clock = FakeClock::at(DAY1);
+        let mut r = runner(&h, vec![]);
+        let mut s = sleeper(&h, None, None);
+        assert_eq!(supervise(&h, &mut r, &clock, &mut s), 1, "{bad:?}");
+        assert_eq!(r.calls, 0);
+        assert!(
+            records()
+                .iter()
+                .any(|(l, m)| *l == log::Level::Error && m.contains("RETRY_INTERVAL_MINUTES"))
+        );
+    }
+}
+
+// @spec SCHED-RETRY-003
+#[test]
+fn failed_cycle_is_retried_after_the_retry_interval() {
+    // The startup cycle fails.
+    let (calls, total) = waited(
+        Some("2"),
+        vec![Step::Err("down".into()), Step::OkThenShutdown(p("a.enc"))],
+    );
+    assert_eq!((calls, total), (2, 2 * MINUTE));
+
+    // A cycle run after a full backup interval fails.
+    let (calls, total) = waited(
+        Some("2"),
+        vec![
+            Step::Ok(p("a.enc")),
+            Step::Err("down".into()),
+            Step::OkThenShutdown(p("b.enc")),
+        ],
+    );
+    assert_eq!((calls, total), (3, HOUR + 2 * MINUTE));
+
+    // Retries fail too: one attempt per retry interval, with no limit.
+    let steps: Vec<Step> = (0..50)
+        .map(|i| Step::Err(format!("down {i}")))
+        .chain([Step::OkThenShutdown(p("a.enc"))])
+        .collect();
+    let (calls, total) = waited(Some("2"), steps);
+    assert_eq!((calls, total), (51, 100 * MINUTE));
+
+    // The backup interval is counted from the retry that succeeded.
+    let (calls, total) = waited(
+        Some("2"),
+        vec![
+            Step::Err("down".into()),
+            Step::Ok(p("a.enc")),
+            Step::OkThenShutdown(p("b.enc")),
+        ],
+    );
+    assert_eq!((calls, total), (3, 2 * MINUTE + HOUR));
+}
+
+// @spec SCHED-RETRY-003
+#[test]
+fn panicking_cycle_is_retried_after_the_retry_interval() {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let (calls, total) = waited(
+        Some("2"),
+        vec![
+            Step::Panic("boom inside cycle".into()),
+            Step::OkThenShutdown(p("a.enc")),
+        ],
+    );
+    std::panic::set_hook(prev);
+    assert_eq!((calls, total), (2, 2 * MINUTE));
+}
+
+// @spec SCHED-RETRY-004
+#[test]
+fn retry_interval_is_capped_at_the_backup_interval() {
+    let (calls, total) = waited(
+        Some("120"),
+        vec![Step::Err("down".into()), Step::OkThenShutdown(p("a.enc"))],
+    );
+    assert_eq!((calls, total), (2, HOUR));
+}
+
+// @spec SCHED-RETRY-005
+#[test]
+fn retry_wait_is_logged_at_info_after_the_failure() {
+    waited(
+        None,
+        vec![Step::Err("down".into()), Step::OkThenShutdown(p("a.enc"))],
+    );
+    let logged = records();
+    let is_retry = |(l, m): &(log::Level, String)| {
+        *l == log::Level::Info && m.to_lowercase().contains("retry") && m.contains("300s")
+    };
+    let failure = logged
+        .iter()
+        .position(|(l, m)| *l == log::Level::Error && m.contains("down"))
+        .expect("the failure is logged");
+    let retry = logged
+        .iter()
+        .position(is_retry)
+        .expect("the retry wait is logged");
+    assert!(failure < retry, "the ERROR line comes first");
+    assert_eq!(logged.iter().filter(|r| is_retry(r)).count(), 1);
+
+    // A failure with shutdown already requested announces no retry.
+    waited(None, vec![Step::ErrThenShutdown("down".into())]);
+    assert!(
+        !records()
+            .iter()
+            .any(|(_, m)| m.to_lowercase().contains("retry"))
     );
 }
 

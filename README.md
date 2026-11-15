@@ -9,7 +9,7 @@ It is built for disaster recovery: after a Vaultwarden rebuild, you decrypt the 
 ## 🚀 Features
 
 - 🔒 Talks to the Bitwarden API directly with your API key and decrypts the vault in memory; no Bitwarden CLI, no third-party binary
-- 🕐 **Interval scheduling**: one backup immediately on start, then every `BACKUP_INTERVAL_HOURS`
+- 🕐 **Interval scheduling**: one backup immediately on start, then every `BACKUP_INTERVAL_HOURS`; a backup that fails is tried again every `RETRY_INTERVAL_MINUTES` until one succeeds
 - 💾 **Portable encryption**: AES-256-GCM with an Argon2id-derived key, a documented byte layout, restorable with one self-contained binary
 - 🧹 **Retention**: prunes backups older than `RETAIN_DAYS` once per UTC day
 - 🔐 **Hardened by construction**: one statically linked Rust binary in a distroless static image, non-root, default Docker seccomp profile, every secret in zeroizing memory, nothing on the command line
@@ -79,6 +79,7 @@ Each cycle authenticates with your API key, derives the master key from your pas
 | `BW_SERVER` | Server URL, `https://` only. `https://vault.bitwarden.com` and `.eu` are recognised as Bitwarden Cloud | ✅ | - |
 | `BW_FILE_PASSWORD` | Password that encrypts each backup file | ✅ | - |
 | `BACKUP_INTERVAL_HOURS` | Hours between backups, 1 to 8760 | ❌ | `12` |
+| `RETRY_INTERVAL_MINUTES` | Minutes to wait before trying again after a failed backup, 1 to 1440; never longer than the backup interval | ❌ | `5` |
 | `BACKUP_DIR` | Backup directory; must lie under `/app` | ❌ | `/app/backups` |
 | `RETAIN_DAYS` | Days to keep backups; `0` disables cleanup | ❌ | `7` |
 | `LOG_FILE` | Also append log lines to this file | ❌ | - |
@@ -148,7 +149,7 @@ Web vault → **Settings → Import data → Bitwarden (json)** → choose `vaul
 - **Environment variables** are visible to `docker inspect` and to anyone who can read your Compose file. Keep those files private, use a dedicated `BW_FILE_PASSWORD` that differs from your master password, and rotate API keys. File-based secrets are an open request.
 - **Image**: Chainguard distroless static base as UID 1000, one static binary, no shell, default seccomp profile, every input pinned by digest or lock file, signed with cosign and shipped with an SBOM and provenance attestation.
 - **TLS**: always verified against Mozilla's root store compiled into the binary; `BW_CA_CERT` adds a bundle, nothing disables verification.
-- **Failures**: a vault that cannot be reached is retried three times with back-off and then logged; the next interval runs regardless. A field that cannot be decrypted is exported as `[error: cannot decrypt]`, exactly as the Bitwarden CLI does, and counted in the log.
+- **Failures**: a vault that cannot be reached is retried three times with back-off and then logged as a failed backup. A failed backup, whatever the cause, is tried again every `RETRY_INTERVAL_MINUTES` (5 by default) until one succeeds, and the next `BACKUP_INTERVAL_HOURS` wait starts from that success. A container that starts before its reverse proxy can reach the vault therefore recovers by itself within minutes. A field that cannot be decrypted is exported as `[error: cannot decrypt]`, exactly as the Bitwarden CLI does, and counted in the log.
 
 ---
 
