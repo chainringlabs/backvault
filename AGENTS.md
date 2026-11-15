@@ -36,14 +36,14 @@ One Cargo workspace:
 | `backvault` | library + binary | The service: `vault/` (client), `cycle/` (one backup), `scheduler.rs` (loop, retention), `logging.rs`, `main.rs` (PID 1) |
 | `backvault-decrypt` | binary | The restore tool: password prompt, file IO, one call into `backvault-format` |
 
-The service's `main` installs logging, registers SIGTERM/SIGINT, and runs the supervisor: every `BACKUP_INTERVAL_HOURS` it runs one cycle (validate configuration, call the vault client, encrypt in memory, write `.part`, fsync, rename to `backup_<UTC timestamp>.enc` under `/app/backups`); once per UTC calendar day it prunes files older than `RETAIN_DAYS`. Every secret lives in a zeroizing container; the restore tool is never in the image.
+The service's `main` installs logging, registers SIGTERM/SIGINT, and runs the supervisor: every `BACKUP_INTERVAL_HOURS` (or `RETRY_INTERVAL_MINUTES` after a cycle that failed) it runs one cycle (validate configuration, call the vault client, encrypt in memory, write `.part`, fsync, rename to `backup_<UTC timestamp>.enc` under `/app/backups`); once per UTC calendar day it prunes files older than `RETAIN_DAYS`. Every secret lives in a zeroizing container; the restore tool is never in the image.
 
 The design is tracked as five arrow segments under `docs/intent/`: vault-access, backup-encryption, backup-cycle, scheduler-retention, delivery. See `docs/high-level-design.md` for the map.
 
 ## Environment Variables
 
 Required: `BW_CLIENT_ID`, `BW_CLIENT_SECRET`, `BW_PASSWORD`, `BW_SERVER`, `BW_FILE_PASSWORD`.
-Optional: `BACKUP_DIR`, `BACKUP_INTERVAL_HOURS`, `RETAIN_DAYS`, `LOG_FILE`, `BW_CA_CERT`. (`BACKUP_ENCRYPTION_MODE` is accepted only as `raw`; any other value fails the cycle with an explanation.)
+Optional: `BACKUP_DIR`, `BACKUP_INTERVAL_HOURS`, `RETRY_INTERVAL_MINUTES`, `RETAIN_DAYS`, `LOG_FILE`, `BW_CA_CERT`. (`BACKUP_ENCRYPTION_MODE` is accepted only as `raw`; any other value fails the cycle with an explanation.)
 Template: `.env-example`. Never commit `.env`.
 
 ## LID

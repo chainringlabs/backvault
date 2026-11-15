@@ -1,6 +1,6 @@
 # scheduler-retention — EARS Specs
 
-Prefix `SCHED`. Facets: `LOG` (process-wide logging), `LOOP` (interval scheduling and failure tolerance), `SIGNAL` (shutdown), `RETAIN` (cleanup).
+Prefix `SCHED`. Facets: `LOG` (process-wide logging), `LOOP` (interval scheduling and failure tolerance), `RETRY` (the wait after a failed cycle), `SIGNAL` (shutdown), `RETAIN` (cleanup).
 
 Status: `[x]` implemented and observed working in the Rust service · `[ ]` specified, not yet implemented or unverified · `[D]` deferred.
 
@@ -14,11 +14,19 @@ Status: `[x]` implemented and observed working in the Rust service · `[ ]` spec
 - [x] **SCHED-LOOP-001**: When the service starts, it shall run one backup cycle immediately before entering the interval loop.
 - [x] **SCHED-LOOP-002**: When `BACKUP_INTERVAL_HOURS` is unset, the service shall use an interval of 12 hours.
 - [x] **SCHED-LOOP-003**: If `BACKUP_INTERVAL_HOURS` is not an integer or is outside the range 1 to 8760, then the service shall log an error and exit with status 1 before running any backup cycle.
-- [x] **SCHED-LOOP-004**: While no shutdown has been requested, the service shall wait `BACKUP_INTERVAL_HOURS` hours after each backup cycle and then run the next one.
+- [x] **SCHED-LOOP-004**: While no shutdown has been requested, the service shall wait `BACKUP_INTERVAL_HOURS` hours after each backup cycle that returns the path of a written backup and then run the next backup cycle.
 - [x] **SCHED-LOOP-005**: If a backup cycle returns an error or panics, then the service shall log the error or panic message at ERROR and continue the schedule rather than terminating.
 - [x] **SCHED-LOOP-006**: When a backup cycle returns the path of a written backup, the service shall log that the backup completed successfully, naming the path.
 - [x] **SCHED-LOOP-007**: The service shall run cycles through a `CycleRunner` trait, take dates and times from a `Clock` trait, and wait through a `Sleeper` trait, so that the loop, cleanup trigger, and shutdown behaviour are testable without real time.
 - [x] **SCHED-LOOP-008**: When the service is invoked with `--version` as its only argument, it shall print its name and version to stdout and exit with status 0 without installing logging, reading configuration, or running a cycle.
+
+## Retry after a failed cycle
+
+- [x] **SCHED-RETRY-001**: When `RETRY_INTERVAL_MINUTES` is unset, the service shall use a retry interval of 5 minutes.
+- [x] **SCHED-RETRY-002**: If `RETRY_INTERVAL_MINUTES` is set and is not an integer or is outside the range 1 to 1440, then the service shall log an error and exit with status 1 before running any backup cycle.
+- [x] **SCHED-RETRY-003**: While no shutdown has been requested, when a backup cycle returns an error or panics, the service shall wait the retry interval and then run the next backup cycle, whether the failed cycle was the one run at startup, one run after a full `BACKUP_INTERVAL_HOURS` wait, or an earlier retry, and with no limit on the number of consecutive retries.
+- [x] **SCHED-RETRY-004**: Where the retry interval is longer than `BACKUP_INTERVAL_HOURS` hours, the service shall wait `BACKUP_INTERVAL_HOURS` hours after a failed backup cycle instead of the retry interval.
+- [x] **SCHED-RETRY-005**: When a backup cycle returns an error or panics and no shutdown has been requested, the service shall log at INFO, after the ERROR line for that cycle, the number of seconds it will wait before the next backup cycle.
 
 ## Signals and shutdown
 
