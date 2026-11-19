@@ -68,14 +68,15 @@ The image smoke test runs `--version` because the service otherwise never exits:
 
 ## Dependency Policy
 
-`renovate.json` extends `config:recommended` with semantic commits, a dependency dashboard, and a night/weekend schedule. Rules:
+`renovate.json` extends the shared preset `github>tgrecojr/renovate-config`, which supplies semantic commits, a dependency dashboard, a night/weekend schedule and the common policy; the toolchain pairing rule is the repo's own. Rules:
 
-- Pin digests for every Docker image reference.
-- Group all minor and patch updates into one PR, automerge after a 3-day minimum release age; crates follow this group.
+- Pin digests for every Docker image reference and every GitHub Action.
+- Group all minor and patch updates into one PR, automerge once the release is 7 days old; crates follow this group.
 - Automerge digest-only updates immediately.
+- Open vulnerability fixes immediately and automerge them once 7 days old.
 - Never automerge majors; label them `major-update`.
 - Keep the Rust builder image tag and `rust-toolchain.toml` on the same version in one PR, so the image build and the developer toolchain never diverge.
-- Lock-file maintenance weekly (`Cargo.lock`).
+- Lock-file maintenance weekly (`Cargo.lock`), under the same 7-day age, merged by the maintainer.
 
 `deny.toml` holds the `cargo-deny` policy: advisories fail the build, licences are restricted to a permissive allow-list, and duplicate crate versions are warned.
 
@@ -93,7 +94,7 @@ The image smoke test runs `--version` because the service otherwise never exits:
 | Restore tool platforms | macOS arm64 and x86_64, Linux x86_64 and arm64 | Windows; Linux glibc builds | The operator's laptop is a Mac or a Linux box; musl static binaries run on any Linux regardless of libc. |
 | Restore tool verification before release | The tool's own subprocess test suite runs on every target in the matrix | Build only | A binary that was never executed on its target platform is not a tested release. |
 | Vulnerability scanning | OSV on `Cargo.lock` plus `cargo-deny` | `cargo audit` alone; Trivy on the image | `cargo-deny` adds licence and duplicate checks to the advisory scan; the image has nothing to scan but the binary. |
-| Automerge policy | Minor/patch grouped after 3 days; digests immediate; majors reviewed | Automerge everything; review everything | Keeps low-risk churn off the maintainer while majors get eyes. |
+| Automerge policy | Minor/patch grouped after 7 days; digests immediate; majors reviewed | Automerge everything; review everything | Keeps low-risk churn off the maintainer while majors get eyes. |
 | Non-root | `USER 1000:1000` in the image; `${UID}:${GID}` in compose | Root; the image's `nonroot` (65532) | Least privilege; mounted-volume ownership matches the host user. |
 | Seccomp | Docker's default profile | `seccomp=unconfined`; a custom profile | Nothing in the image needs a non-default syscall; the default profile is the one operators get without reading documentation. |
 

@@ -41,6 +41,6 @@ Status: `[x]` implemented and observed working · `[ ]` specified, not yet imple
 ## Dependency policy (renovate.json, deny.toml)
 
 - [x] **IMAGE-DEPS-001**: Renovate shall pin digests for every Docker image reference it manages.
-- [x] **IMAGE-DEPS-002**: Renovate shall group minor and patch updates, crates included, into one PR and automerge it after a 3-day minimum release age, automerge digest-only updates immediately, and shall not automerge major updates.
+- [x] **IMAGE-DEPS-002**: Renovate shall group minor and patch updates, crates included, into one PR and automerge it once the release is 7 days old, automerge digest-only updates immediately, and shall not automerge major updates.
 - [x] **IMAGE-DEPS-004**: Renovate shall update the Rust builder image tag and the version in `rust-toolchain.toml` together in a single PR.
 - [x] **IMAGE-DEPS-005**: `deny.toml` shall fail the build on any crate with a known advisory, restrict licences to a permissive allow-list, and warn on duplicate crate versions.
