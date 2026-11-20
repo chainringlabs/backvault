@@ -1,30 +1,21 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    ":disableRateLimiting",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    "docker:enableMajor",
-    ":timezone(America/New_York)"
+    "github>tgrecojr/renovate-config"
   ],
-  "schedule": [
-    "after 10pm every weekday",
-    "before 5am every weekday",
-    "every weekend"
+  "ignoreDeps": [
+    "ghcr.io/tgrecojr/backvault"
   ],
-  "ignoreDeps": ["ghcr.io/tgrecojr/backvault"],
-  "prConcurrentLimit": 3,
-  "prCreation": "immediate",
-  "rebaseWhen": "behind-base-branch",
-  "automerge": true,
-  "platformAutomerge": true,
   "customManagers": [
     {
       "description": "rust-toolchain.toml pins the toolchain used by developers, CI, and releases",
       "customType": "regex",
-      "managerFilePatterns": ["/^rust-toolchain\\.toml$/"],
-      "matchStrings": ["channel = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "managerFilePatterns": [
+        "/^rust-toolchain\\.toml$/"
+      ],
+      "matchStrings": [
+        "channel = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "depNameTemplate": "rust",
       "packageNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-releases",
@@ -33,45 +24,14 @@
   ],
   "packageRules": [
     {
-      "description": "Pin digests for all Docker images",
-      "matchDatasources": ["docker"],
-      "pinDigests": true
-    },
-    {
-      "description": "Group all minor and patch updates (crates included) together with a 3-day stability window",
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "all non-major dependencies",
-      "groupSlug": "all-minor-patch",
-      "automerge": true,
-      "minimumReleaseAge": "3 days"
-    },
-    {
-      "description": "Disable auto-merge for major updates - need review",
-      "matchUpdateTypes": ["major"],
-      "automerge": false,
-      "labels": ["major-update"]
-    },
-    {
-      "description": "Auto-merge digest updates immediately (no stability delay)",
-      "matchUpdateTypes": ["digest"],
-      "automerge": true,
-      "schedule": ["at any time"],
-      "minimumReleaseAge": null
-    },
-    {
       "description": "Keep rust-toolchain.toml and the Rust builder image on one version in a single PR, so the image build and the developer toolchain never diverge (IMAGE-DEPS-004).",
-      "matchDepNames": ["rust", "docker.io/library/rust"],
+      "matchDepNames": [
+        "rust",
+        "docker.io/library/rust"
+      ],
       "groupName": "rust toolchain",
       "groupSlug": "rust-toolchain",
       "automerge": false
     }
-  ],
-  "vulnerabilityAlerts": {
-    "enabled": true,
-    "labels": ["security"]
-  },
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 4am on monday"]
-  }
+  ]
 }
