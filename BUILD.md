@@ -67,4 +67,4 @@ services:
     image: ghcr.io/chainringlabs/backvault:latest
 ```
 
-Every push to `main` scans the lock file (OSV, cargo-deny, Socket), builds the amd64 image, signs it with cosign, and publishes it with an SPDX SBOM and build-provenance attestation to `ghcr.io/chainringlabs/backvault`.
+Pull requests are scanned for vulnerabilities they introduce; every push to `main` scans the lock file in full (OSV, cargo-deny, Socket), builds the amd64 image, signs it with cosign, and publishes it with an SPDX SBOM and build-provenance attestation to `ghcr.io/chainringlabs/backvault`.

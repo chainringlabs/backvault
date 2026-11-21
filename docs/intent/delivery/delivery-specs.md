@@ -24,11 +24,12 @@ Status: `[x]` implemented and observed working · `[ ]` specified, not yet imple
 ## CI pipeline (image)
 
 - [x] **IMAGE-CI-001**: When a pull request is opened or updated, CI shall run `cargo fmt --check`, `cargo clippy --workspace --all-targets` with warnings denied, and `cargo test --workspace --locked`, build the `linux/amd64` image, and smoke-test the built image by running `/app/backvault --version` under Docker's default seccomp profile.
-- [x] **IMAGE-CI-002**: When a commit is pushed to `main`, CI shall run the supply-chain scan (Socket when its API key is present, OSV against `Cargo.lock`, `cargo-deny` advisories, licences, and bans) before any image is built.
+- [x] **IMAGE-CI-002**: When a commit is pushed to `main`, CI shall run the full supply-chain scan (Socket when its API key is present, OSV against `Cargo.lock` failing on any known vulnerability, `cargo-deny` advisories, licences, bans, and sources) before any image is built, and shall run the same scan every Monday and on manual dispatch.
 - [x] **IMAGE-CI-003**: When the supply-chain scan succeeds on `main`, CI shall build and push the image to `ghcr.io/chainringlabs/backvault` tagged `latest` and `sha-<short-sha>`.
 - [x] **IMAGE-CI-004**: When an image is pushed, CI shall sign it by digest with cosign keyless, generate an SPDX SBOM, and push attestations for both the SBOM and the build provenance to the registry.
 - [x] **IMAGE-CI-005**: If the Socket API-key secret is unavailable (bot-authored pull requests), then CI shall skip the Socket step and still run the remaining scans.
 - [ ] **IMAGE-CI-006**: Weekly and on manual dispatch, CI shall prune the GHCR package to the `latest` tag plus the 5 most recent tagged versions and delete untagged versions.
+- [x] **IMAGE-CI-007**: When a pull request is opened or updated, CI shall run the supply-chain scan in comparison mode: OSV scans of the pull request's `Cargo.lock` and the base branch's, failing only on vulnerabilities the pull request introduces, and `cargo-deny` licences, bans, and sources.
 
 ## Release pipeline (restore tool)
 
@@ -43,4 +44,4 @@ Status: `[x]` implemented and observed working · `[ ]` specified, not yet imple
 - [x] **IMAGE-DEPS-001**: Renovate shall pin digests for every Docker image reference it manages.
 - [x] **IMAGE-DEPS-002**: Renovate shall group minor and patch updates, crates included, into one PR and automerge it once the release is 7 days old, automerge digest-only updates immediately, and shall not automerge major updates.
 - [x] **IMAGE-DEPS-004**: Renovate shall update the Rust builder image tag and the version in `rust-toolchain.toml` together in a single PR.
-- [x] **IMAGE-DEPS-005**: `deny.toml` shall fail the build on any crate with a known advisory, restrict licences to a permissive allow-list, and warn on duplicate crate versions.
+- [x] **IMAGE-DEPS-005**: `deny.toml` shall fail the full scan on any crate with a known advisory, restrict licences to a permissive allow-list, and warn on duplicate crate versions.
