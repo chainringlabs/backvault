@@ -174,7 +174,7 @@ docker compose pull && docker compose up -d
 ## 🔄 CI/CD
 
 - **Test** on every pull request: `cargo fmt`, `cargo clippy` with warnings denied, `cargo test` for the whole workspace, an amd64 image build, and a `--version` smoke run under the default seccomp profile.
-- **Publish** on every merge to `main`: Socket, OSV, and cargo-deny scans of `Cargo.lock`, then build, cosign sign, SBOM, provenance, push to `ghcr.io/chainringlabs/backvault` as `latest` and `main-<sha>`.
+- **Publish** on every merge to `main`: Socket, OSV, and cargo-deny scans of `Cargo.lock`, then the organization's shared publish workflow (`chainringlabs/ci`) builds, cosign signs, attaches SBOM and provenance, and pushes to `ghcr.io/chainringlabs/backvault` as `latest` and `sha-<sha>`.
 - **Release** on every `v*` tag: the restore tool for four targets, tested on each, signed and attested, attached to a GitHub Release.
 - **GHCR retention** weekly: keep `latest` plus the five most recent tagged versions.
 

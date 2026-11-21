@@ -49,7 +49,7 @@ Tests and code cite the spec they satisfy with `// @spec <ID>` comments. Every t
 
 ## Releases
 
-- The service image publishes on every merge to `main` as `ghcr.io/chainringlabs/backvault:latest` and `main-<sha>`, signed with cosign and attested with an SBOM and build provenance.
+- The service image publishes on every merge to `main` as `ghcr.io/chainringlabs/backvault:latest` and `sha-<sha>`, signed with cosign and attested with an SBOM and build provenance.
 - The restore tool is released by pushing a tag `vX.Y.Z`. The workflow builds four targets, runs the tool's tests on each, signs every binary, attests provenance, and creates the GitHub Release with the notes in `.github/release-notes.md`.
 
 ## Security
