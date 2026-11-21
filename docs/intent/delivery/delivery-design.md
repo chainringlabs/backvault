@@ -37,7 +37,7 @@ The image is built for `linux/amd64` only.
 
 ## Reference Deployment
 
-`docker-compose.yml` is the operator-facing contract: image `ghcr.io/tgrecojr/backvault:latest`, run as `${UID:-1000}:${GID:-1000}`, mount `./backups` at `/app/backups`, pass the five required credentials from the environment, default `BACKUP_INTERVAL_HOURS=12` and `RETAIN_DAYS=7`, and show `BW_CA_CERT` as the commented-out option for self-signed servers (the path must also be mounted). It sets no `security_opt`; the default seccomp profile applies.
+`docker-compose.yml` is the operator-facing contract: image `ghcr.io/chainringlabs/backvault:latest`, run as `${UID:-1000}:${GID:-1000}`, mount `./backups` at `/app/backups`, pass the five required credentials from the environment, default `BACKUP_INTERVAL_HOURS=12` and `RETAIN_DAYS=7`, and show `BW_CA_CERT` as the commented-out option for self-signed servers (the path must also be mounted). It sets no `security_opt`; the default seccomp profile applies.
 
 ## Restore Tool Release
 
@@ -58,7 +58,7 @@ Each asset is named `backvault-decrypt-<target>` and is accompanied by `backvaul
 |---------|----------|-------|
 | pull request | `test.yml` | `cargo fmt --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace --locked` (format fixtures and restore-tool subprocess tests included); build the amd64 image; run `backvault --version` from the image under the default seccomp profile |
 | push to main | `docker-publish.yml` → `supply-chain.yml` | Socket scan (skipped when the API-key secret is absent); OSV scan of `Cargo.lock`; `cargo-deny` advisories, licences, and bans |
-| push to main (after scan) | `docker-publish.yml` | build and push `latest` and `main-<sha>` to `ghcr.io/tgrecojr/backvault`; cosign keyless sign by digest; SPDX SBOM via anchore; `actions/attest` for the SBOM; `attest-build-provenance`; both pushed to the registry |
+| push to main (after scan) | `docker-publish.yml` | build and push `latest` and `main-<sha>` to `ghcr.io/chainringlabs/backvault`; cosign keyless sign by digest; SPDX SBOM via anchore; `actions/attest` for the SBOM; `attest-build-provenance`; both pushed to the registry |
 | tag `v*` | `release.yml` | the restore tool matrix above |
 | weekly / manual | `ghcr-retention.yml` | keep `latest` plus the 5 most recent tagged versions; delete untagged |
 

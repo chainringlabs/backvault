@@ -30,7 +30,7 @@ docker run -d \
   -e BW_FILE_PASSWORD="backup_encryption_password" \
   -e BACKUP_INTERVAL_HOURS=12 \
   -v /path/to/backup:/app/backups \
-  ghcr.io/tgrecojr/backvault:latest
+  ghcr.io/chainringlabs/backvault:latest
 ```
 
 > 🔑 Your credentials authenticate to your own server and derive keys inside the container. The master password never leaves the process, nothing is stored, and every key and token is wiped when the cycle ends.
@@ -42,7 +42,7 @@ docker run -d \
 ```yaml
 services:
   backvault:
-    image: ghcr.io/tgrecojr/backvault:latest
+    image: ghcr.io/chainringlabs/backvault:latest
     container_name: backvault
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
@@ -95,7 +95,7 @@ Backups are plain files in a documented format: `[4-byte version][16-byte salt][
 
 ### 1. Get the restore tool
 
-Download `backvault-decrypt` for your machine from the [latest release](https://github.com/tgrecojr/backvault/releases/latest):
+Download `backvault-decrypt` for your machine from the [latest release](https://github.com/chainringlabs/backvault/releases/latest):
 
 | Machine | Asset |
 |---|---|
@@ -125,7 +125,7 @@ chmod +x backvault-decrypt-<target>
 Prefer to build it yourself? With a Rust toolchain installed:
 
 ```bash
-git clone https://github.com/tgrecojr/backvault.git && cd backvault
+git clone https://github.com/chainringlabs/backvault.git && cd backvault
 cargo build --release -p backvault-decrypt      # target/release/backvault-decrypt
 ```
 
@@ -174,7 +174,7 @@ docker compose pull && docker compose up -d
 ## 🔄 CI/CD
 
 - **Test** on every pull request: `cargo fmt`, `cargo clippy` with warnings denied, `cargo test` for the whole workspace, an amd64 image build, and a `--version` smoke run under the default seccomp profile.
-- **Publish** on every merge to `main`: Socket, OSV, and cargo-deny scans of `Cargo.lock`, then build, cosign sign, SBOM, provenance, push to `ghcr.io/tgrecojr/backvault` as `latest` and `main-<sha>`.
+- **Publish** on every merge to `main`: Socket, OSV, and cargo-deny scans of `Cargo.lock`, then build, cosign sign, SBOM, provenance, push to `ghcr.io/chainringlabs/backvault` as `latest` and `main-<sha>`.
 - **Release** on every `v*` tag: the restore tool for four targets, tested on each, signed and attested, attached to a GitHub Release.
 - **GHCR retention** weekly: keep `latest` plus the five most recent tagged versions.
 

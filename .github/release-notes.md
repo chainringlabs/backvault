@@ -51,7 +51,7 @@ You are prompted for the backup file password. Import `vault.json` through the w
 With a Rust toolchain installed (`rustup`), the same binary builds from the repository in one command:
 
 ```bash
-git clone https://github.com/tgrecojr/backvault.git
+git clone https://github.com/chainringlabs/backvault.git
 cd backvault
 cargo build --release -p backvault-decrypt
 # target/release/backvault-decrypt

@@ -4,7 +4,7 @@
     "github>tgrecojr/renovate-config"
   ],
   "ignoreDeps": [
-    "ghcr.io/tgrecojr/backvault"
+    "ghcr.io/chainringlabs/backvault"
   ],
   "customManagers": [
     {
