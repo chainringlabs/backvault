@@ -57,7 +57,8 @@ Each asset is named `backvault-decrypt-<target>` and is accompanied by `backvaul
 | Trigger | Workflow | Steps |
 |---------|----------|-------|
 | pull request | `test.yml` | `cargo fmt --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace --locked` (format fixtures and restore-tool subprocess tests included); build the amd64 image; run `backvault --version` from the image under the default seccomp profile |
-| push to main | `docker-publish.yml` → `supply-chain.yml` | Socket scan (skipped when the API-key secret is absent); OSV scan of `Cargo.lock`; `cargo-deny` advisories, licences, and bans |
+| pull request | `supply-chain.yml` | the organization's shared scan (`chainringlabs/ci`, pinned by commit): Socket scan (skipped when the API-key secret is absent); OSV scans of this pull request's `Cargo.lock` and the base branch's, failing only on vulnerabilities the pull request introduces; `cargo-deny` licences, bans, and sources |
+| push to main; every Monday; manual dispatch | `docker-publish.yml` (first job); `supply-chain.yml` | the same shared scan in full: Socket scan; OSV scan of `Cargo.lock` failing on any known vulnerability; `cargo-deny` advisories, licences, bans, and sources |
 | push to main (after scan) | `docker-publish.yml` | calls the organization's shared publish workflow (`chainringlabs/ci`, pinned by commit), which signs as itself with this repository recorded as the source: build and push `latest` and `sha-<sha>` to `ghcr.io/chainringlabs/backvault`; cosign keyless sign by digest; SPDX SBOM via anchore; `actions/attest` for the SBOM; `attest-build-provenance`; both pushed to the registry |
 | tag `v*` | `release.yml` | the restore tool matrix above |
 | weekly / manual | `ghcr-retention.yml` | keep `latest` plus the 5 most recent tagged versions; delete untagged |
@@ -78,7 +79,7 @@ The image smoke test runs `--version` because the service otherwise never exits:
 - Keep the Rust builder image tag and `rust-toolchain.toml` on the same version in one PR, so the image build and the developer toolchain never diverge.
 - Lock-file maintenance weekly (`Cargo.lock`), under the same 7-day age, merged by the maintainer.
 
-`deny.toml` holds the `cargo-deny` policy: advisories fail the build, licences are restricted to a permissive allow-list, and duplicate crate versions are warned.
+`deny.toml` holds the `cargo-deny` policy: advisories fail the full scan (on `main` and weekly; pull requests are judged by the OSV comparison), licences are restricted to a permissive allow-list, and duplicate crate versions are warned.
 
 ## Decisions & Alternatives
 
@@ -93,6 +94,8 @@ The image smoke test runs `--version` because the service otherwise never exits:
 | Publication trust | cosign keyless + SPDX SBOM + provenance attestations for the image; sha256 + cosign blob signature + provenance for each binary | Unsigned; key-based cosign; Apple notarization | Verifiable origin without managing signing keys or an Apple Developer account. |
 | Restore tool platforms | macOS arm64 and x86_64, Linux x86_64 and arm64 | Windows; Linux glibc builds | The operator's laptop is a Mac or a Linux box; musl static binaries run on any Linux regardless of libc. |
 | Restore tool verification before release | The tool's own subprocess test suite runs on every target in the matrix | Build only | A binary that was never executed on its target platform is not a tested release. |
+| Scan mode on pull requests | OSV diff: fail only on vulnerabilities the pull request introduces; full scan on `main` and weekly | Full scan on every pull request; no pull-request scan | A full scan on pull requests blocks unrelated work the day an advisory lands against a crate already on `main`; no scan lets a vulnerable new crate reach `main` before anything looks. The weekly run keeps `main`'s own state visible. |
+| Where the scan logic lives | The organization's shared workflow (`chainringlabs/ci`), pinned by commit | A copy in this repository | One reviewed scan for every repository; a change reaches this one only when its pin is raised. Policy stays here, in `deny.toml` and `osv-scanner.toml`. |
 | Vulnerability scanning | OSV on `Cargo.lock` plus `cargo-deny` | `cargo audit` alone; Trivy on the image | `cargo-deny` adds licence and duplicate checks to the advisory scan; the image has nothing to scan but the binary. |
 | Automerge policy | Minor/patch grouped after 7 days; digests immediate; majors reviewed | Automerge everything; review everything | Keeps low-risk churn off the maintainer while majors get eyes. |
 | Non-root | `USER 1000:1000` in the image; `${UID}:${GID}` in compose | Root; the image's `nonroot` (65532) | Least privilege; mounted-volume ownership matches the host user. |

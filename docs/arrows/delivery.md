@@ -4,7 +4,7 @@ Builds, verifies, signs, and publishes the container image and the restore-tool 
 
 ## Status
 
-**MAPPED** — 25 of 26 specs verified: pull-request checks, the main-branch scan and signed publish, and the `v1.0.0` release run have all been observed green. The release produced four tested binaries with checksums, Sigstore bundles, and SLSA provenance; the macOS arm64 asset was downloaded, verified with `gh attestation verify`, and decrypted the format fixture byte for byte. The one open spec is the weekly GHCR retention run, verified when it next fires.
+**MAPPED** — 26 of 27 specs verified: pull-request checks (the comparison scan included), the main-branch scan and signed publish, and the `v1.0.0` release run have all been observed green. The release produced four tested binaries with checksums, Sigstore bundles, and SLSA provenance; the macOS arm64 asset was downloaded, verified with `gh attestation verify`, and decrypted the format fixture byte for byte. The one open spec is the weekly GHCR retention run, verified when it next fires.
 
 ## References
 
@@ -15,7 +15,7 @@ Builds, verifies, signs, and publishes the container image and the restore-tool 
 - docs/intent/delivery/delivery-design.md
 
 ### EARS
-- docs/intent/delivery/delivery-specs.md (26 specs)
+- docs/intent/delivery/delivery-specs.md (27 specs)
 
 ### Tests
 - .github/workflows/test.yml (fmt, clippy, workspace tests, amd64 image build, `--version` smoke under default seccomp)
@@ -38,11 +38,12 @@ Builds, verifies, signs, and publishes the container image and the restore-tool 
 **Key Components:**
 1. Dockerfile — `rust:alpine` builder (`cargo build --locked`, musl target, gcc and musl-dev already present) → Chainguard `static` runtime, UID 1000, `/app/backvault`.
 2. `test.yml` — PR gate: fmt, clippy, tests, amd64 build, `--version` smoke.
-3. `docker-publish.yml` + `supply-chain.yml` — main-branch pipeline: Socket / OSV / cargo-deny → build → push → cosign sign → SPDX SBOM → attestations.
-4. `release.yml` — tag pipeline: four-target restore-tool matrix, tests per target, checksums, cosign blob signatures, provenance, GitHub Release with `.github/release-notes.md`.
-5. `ghcr-retention.yml` — weekly prune.
-6. `renovate.json` + `deny.toml` — digest pinning, grouped automerge, toolchain lockstep via a custom manager, advisory and licence policy.
-7. `docker-compose.yml` — reference deployment with no `security_opt`; published image name; `BW_CA_CERT` shown for self-signed servers.
+3. `supply-chain.yml` — the shared scan from `chainringlabs/ci` on pull requests (comparison mode), weekly and on demand (full).
+4. `docker-publish.yml` — main-branch pipeline: full scan (Socket / OSV / cargo-deny) → build → push → cosign sign → SPDX SBOM → attestations.
+5. `release.yml` — tag pipeline: four-target restore-tool matrix, tests per target, checksums, cosign blob signatures, provenance, GitHub Release with `.github/release-notes.md`.
+6. `ghcr-retention.yml` — weekly prune.
+7. `renovate.json` + `deny.toml` — digest pinning, grouped automerge, toolchain lockstep via a custom manager, advisory and licence policy.
+8. `docker-compose.yml` — reference deployment with no `security_opt`; published image name; `BW_CA_CERT` shown for self-signed servers.
 
 ## Spec Coverage
 
@@ -50,11 +51,11 @@ Builds, verifies, signs, and publishes the container image and the restore-tool 
 |----------|----------|-------------|----------|------|
 | Image build | IMAGE-BUILD-001 to 003, 005 to 008 | 7 | 0 | 0 |
 | Reference deployment | IMAGE-RUN-001 to 004 | 4 | 0 | 0 |
-| CI pipeline | IMAGE-CI-001 to 006 | 5 | 0 | 1 |
+| CI pipeline | IMAGE-CI-001 to 007 | 6 | 0 | 1 |
 | Release pipeline | IMAGE-RELEASE-001 to 005 | 5 | 0 | 0 |
 | Dependency policy | IMAGE-DEPS-001, 002, 004, 005 | 4 | 0 | 0 |
 
-**Summary:** 25 of 26 active specs verified; IMAGE-CI-006 awaits the next weekly retention run. IMAGE-CI-005 (Socket self-skip without the secret) is verified by inspection of the `if:` guard: the scan runs only on pushes to `main`, where the secret is present, so the skip path is dormant rather than exercised. These specs are verified by inspection and by CI runs, not by unit tests.
+**Summary:** 26 of 27 active specs verified; IMAGE-CI-006 awaits the next weekly retention run. IMAGE-CI-005 (Socket self-skip without the secret) is verified by inspection of the `if:` guard: the secret is present on pushes to `main` and on the owner's pull requests; bot-authored pull requests are where the skip path is exercised. These specs are verified by inspection and by CI runs, not by unit tests.
 
 ## Key Findings
 

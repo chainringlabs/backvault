@@ -1,46 +1,22 @@
-name: Supply chain scan
+name: Supply chain
 
 on:
-  workflow_call:
-    secrets:
-      SOCKET_SECURITY_API_KEY:
-        # Not marked required: bot-authored PRs (Renovate) run in an isolated context
-        # without access to repo secrets. With required: true the reusable-workflow call
-        # fails before any job runs; required: false lets the rest of the scan run, and
-        # the Socket step below self-skips when the secret is absent.
-        required: false
+  pull_request:
+  # Weekly full scan of main: pull requests fail only on vulnerabilities they
+  # introduce, so this is where an advisory against an already-merged
+  # dependency surfaces.
+  schedule:
+    - cron: '0 13 * * 1'   # Mondays 13:00 UTC
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
-  scan:
-    name: Scan
-    runs-on: ubuntu-latest
+  supply-chain:
+    name: Supply chain
     permissions:
       contents: read
-    # Job-level env so the Socket step's `if:` can test for the secret's presence.
-    env:
-      SOCKET_SECURITY_API_KEY: ${{ secrets.SOCKET_SECURITY_API_KEY }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Socket Security scan
-        if: ${{ env.SOCKET_SECURITY_API_KEY != '' }}
-        run: |
-          repo_slug="${GITHUB_REPOSITORY##*/}"
-          branch_name="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          npx -y @socketsecurity/cli@latest scan create \
-            --org grecolabs \
-            --repo "${repo_slug}" \
-            --branch "${branch_name}" \
-            --report \
-            ./
-
-      - name: OSV scan (Cargo.lock)
-        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
-        with:
-          scan-args: |-
-            --lockfile=Cargo.lock
-
-      - name: cargo-deny (advisories, licences, bans, sources)
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        with:
-          command: check advisories licenses bans sources
+    uses: chainringlabs/ci/.github/workflows/supply-chain.yml@f8888baa2af7a041fe6a5a11f8fe0be182357cc3 # v1.2.1
+    with:
+      cargo-deny: true
+    secrets: inherit
