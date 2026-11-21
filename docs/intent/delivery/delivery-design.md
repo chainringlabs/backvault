@@ -68,7 +68,7 @@ The image smoke test runs `--version` because the service otherwise never exits:
 
 ## Dependency Policy
 
-`renovate.json` extends the shared preset `github>tgrecojr/renovate-config`, which supplies semantic commits, a dependency dashboard, a night/weekend schedule and the common policy; the toolchain pairing rule is the repo's own. Rules:
+`renovate.json` extends the shared preset `github>chainringlabs/renovate-config`, which supplies semantic commits, a dependency dashboard, a night/weekend schedule and the common policy; the toolchain pairing rule is the repo's own. Rules:
 
 - Pin digests for every Docker image reference and every GitHub Action.
 - Group all minor and patch updates into one PR, automerge once the release is 7 days old; crates follow this group.
