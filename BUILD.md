@@ -64,7 +64,7 @@ Use the published image:
 ```yaml
 services:
   backvault:
-    image: ghcr.io/tgrecojr/backvault:latest
+    image: ghcr.io/chainringlabs/backvault:latest
 ```
 
-Every push to `main` scans the lock file (OSV, cargo-deny, Socket), builds the amd64 image, signs it with cosign, and publishes it with an SPDX SBOM and build-provenance attestation to `ghcr.io/tgrecojr/backvault`.
+Every push to `main` scans the lock file (OSV, cargo-deny, Socket), builds the amd64 image, signs it with cosign, and publishes it with an SPDX SBOM and build-provenance attestation to `ghcr.io/chainringlabs/backvault`.

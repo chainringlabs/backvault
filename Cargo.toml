@@ -6,7 +6,7 @@ members = ["crates/backvault-format", "crates/backvault-decrypt", "crates/backva
 version = "1.0.0"
 edition = "2024"
 license = "AGPL-3.0-only"
-repository = "https://github.com/tgrecojr/backvault"
+repository = "https://github.com/chainringlabs/backvault"
 rust-version = "1.94"
 
 [workspace.dependencies]

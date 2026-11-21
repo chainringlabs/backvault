@@ -1,7 +1,7 @@
 services:
   backvault:
     # Published image from GitHub Container Registry (linux/amd64)
-    image: ghcr.io/tgrecojr/backvault:latest
+    image: ghcr.io/chainringlabs/backvault:latest
 
     # OR: Build locally (uncomment the line below and comment out 'image' above)
     # On macOS the image is amd64; see BUILD.md.
