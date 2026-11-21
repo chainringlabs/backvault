@@ -37,7 +37,7 @@ The image is built for `linux/amd64` only.
 
 ## Reference Deployment
 
-`docker-compose.yml` is the operator-facing contract: image `ghcr.io/tgrecojr/backvault:latest`, run as `${UID:-1000}:${GID:-1000}`, mount `./backups` at `/app/backups`, pass the five required credentials from the environment, default `BACKUP_INTERVAL_HOURS=12` and `RETAIN_DAYS=7`, and show `BW_CA_CERT` as the commented-out option for self-signed servers (the path must also be mounted). It sets no `security_opt`; the default seccomp profile applies.
+`docker-compose.yml` is the operator-facing contract: image `ghcr.io/chainringlabs/backvault:latest`, run as `${UID:-1000}:${GID:-1000}`, mount `./backups` at `/app/backups`, pass the five required credentials from the environment, default `BACKUP_INTERVAL_HOURS=12` and `RETAIN_DAYS=7`, and show `BW_CA_CERT` as the commented-out option for self-signed servers (the path must also be mounted). It sets no `security_opt`; the default seccomp profile applies.
 
 ## Restore Tool Release
 
@@ -58,7 +58,7 @@ Each asset is named `backvault-decrypt-<target>` and is accompanied by `backvaul
 |---------|----------|-------|
 | pull request | `test.yml` | `cargo fmt --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace --locked` (format fixtures and restore-tool subprocess tests included); build the amd64 image; run `backvault --version` from the image under the default seccomp profile |
 | push to main | `docker-publish.yml` → `supply-chain.yml` | Socket scan (skipped when the API-key secret is absent); OSV scan of `Cargo.lock`; `cargo-deny` advisories, licences, and bans |
-| push to main (after scan) | `docker-publish.yml` | build and push `latest` and `main-<sha>` to `ghcr.io/tgrecojr/backvault`; cosign keyless sign by digest; SPDX SBOM via anchore; `actions/attest` for the SBOM; `attest-build-provenance`; both pushed to the registry |
+| push to main (after scan) | `docker-publish.yml` | build and push `latest` and `main-<sha>` to `ghcr.io/chainringlabs/backvault`; cosign keyless sign by digest; SPDX SBOM via anchore; `actions/attest` for the SBOM; `attest-build-provenance`; both pushed to the registry |
 | tag `v*` | `release.yml` | the restore tool matrix above |
 | weekly / manual | `ghcr-retention.yml` | keep `latest` plus the 5 most recent tagged versions; delete untagged |
 
@@ -68,14 +68,15 @@ The image smoke test runs `--version` because the service otherwise never exits:
 
 ## Dependency Policy
 
-`renovate.json` extends `config:recommended` with semantic commits, a dependency dashboard, and a night/weekend schedule. Rules:
+`renovate.json` extends the shared preset `github>tgrecojr/renovate-config`, which supplies semantic commits, a dependency dashboard, a night/weekend schedule and the common policy; the toolchain pairing rule is the repo's own. Rules:
 
-- Pin digests for every Docker image reference.
-- Group all minor and patch updates into one PR, automerge after a 3-day minimum release age; crates follow this group.
+- Pin digests for every Docker image reference and every GitHub Action.
+- Group all minor and patch updates into one PR, automerge once the release is 7 days old; crates follow this group.
 - Automerge digest-only updates immediately.
+- Open vulnerability fixes immediately and automerge them once 7 days old.
 - Never automerge majors; label them `major-update`.
 - Keep the Rust builder image tag and `rust-toolchain.toml` on the same version in one PR, so the image build and the developer toolchain never diverge.
-- Lock-file maintenance weekly (`Cargo.lock`).
+- Lock-file maintenance weekly (`Cargo.lock`), under the same 7-day age, merged by the maintainer.
 
 `deny.toml` holds the `cargo-deny` policy: advisories fail the build, licences are restricted to a permissive allow-list, and duplicate crate versions are warned.
 
@@ -93,7 +94,7 @@ The image smoke test runs `--version` because the service otherwise never exits:
 | Restore tool platforms | macOS arm64 and x86_64, Linux x86_64 and arm64 | Windows; Linux glibc builds | The operator's laptop is a Mac or a Linux box; musl static binaries run on any Linux regardless of libc. |
 | Restore tool verification before release | The tool's own subprocess test suite runs on every target in the matrix | Build only | A binary that was never executed on its target platform is not a tested release. |
 | Vulnerability scanning | OSV on `Cargo.lock` plus `cargo-deny` | `cargo audit` alone; Trivy on the image | `cargo-deny` adds licence and duplicate checks to the advisory scan; the image has nothing to scan but the binary. |
-| Automerge policy | Minor/patch grouped after 3 days; digests immediate; majors reviewed | Automerge everything; review everything | Keeps low-risk churn off the maintainer while majors get eyes. |
+| Automerge policy | Minor/patch grouped after 7 days; digests immediate; majors reviewed | Automerge everything; review everything | Keeps low-risk churn off the maintainer while majors get eyes. |
 | Non-root | `USER 1000:1000` in the image; `${UID}:${GID}` in compose | Root; the image's `nonroot` (65532) | Least privilege; mounted-volume ownership matches the host user. |
 | Seccomp | Docker's default profile | `seccomp=unconfined`; a custom profile | Nothing in the image needs a non-default syscall; the default profile is the one operators get without reading documentation. |
 
